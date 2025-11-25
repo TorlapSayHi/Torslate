@@ -107,6 +107,15 @@ class SelectionOverlay(QWidget):
             self.capture_screen(x1, y1, width, height)
 
     def capture_screen(self, x, y, w, h):
+        screen = QApplication.primaryScreen()
+        screen_size = screen.geometry().size()
+        available_size = screen.availableGeometry().size()
+
+        scale_factor = screen.devicePixelRatio()
+        x = int(x * scale_factor)
+        y = int(y * scale_factor)
+        w = int(w * scale_factor)
+        h = int(h * scale_factor)
         # ใช้ mss จับภาพหน้าจอตามพิกัด
         with mss.mss() as sct:
             monitor = {"top": y, "left": x, "width": w, "height": h}
@@ -122,7 +131,11 @@ class SelectionOverlay(QWidget):
 class ResultWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        # ใช้บรรทัดบนหากต้องการคลิกตรงไหนก็ได้เพื่อลากได้ แต่จะย่อขยายไม่ได้
+        # self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        self.setWindowFlags(Qt.WindowType.Window | 
+                            Qt.WindowType.WindowStaysOnTopHint | 
+                            Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.resize(350, 200)
         
@@ -132,10 +145,10 @@ class ResultWindow(QWidget):
         
         # Frame พื้นหลัง (เพื่อให้มีสีและขอบมน)
         self.frame = QFrame()
+        # border-radius: 10px; เพิ่มเข้า Qframe หากต้องการให้โค้งมน
         self.frame.setStyleSheet("""
             QFrame {
                 background-color: rgba(0, 0, 0, 200);
-                border-radius: 10px;
                 border: 1px solid white;
             }
             QLabel {
@@ -154,13 +167,13 @@ class ResultWindow(QWidget):
         frame_layout = QVBoxLayout()
         
         # Header (ปุ่มปิด)
-        self.close_btn = QPushButton("X")
-        self.close_btn.setFixedSize(20, 20)
-        self.close_btn.setStyleSheet("background-color: red; color: white; border-radius: 10px; border: none;")
-        self.close_btn.clicked.connect(self.close)
+        # self.close_btn = QPushButton("")
+        # self.close_btn.setFixedSize(20, 20)
+        # self.close_btn.setStyleSheet("background-color: red; color: white; border-radius: 10px; border: none;")
+        # self.close_btn.clicked.connect(self.close)
         
         header_layout = QVBoxLayout()
-        header_layout.addWidget(self.close_btn, alignment=Qt.AlignmentFlag.AlignRight)
+        # header_layout.addWidget(self.close_btn, alignment=Qt.AlignmentFlag.AlignRight)
 
         # ส่วนแสดงข้อความ
         self.original_label = QLabel("กำลังประมวลผล...")
