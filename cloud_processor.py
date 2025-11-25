@@ -1,10 +1,33 @@
 import os
+import sys
 import io
+import html
 from google.cloud import vision
 from google.cloud import translate_v2 as translate # ใช้ v2 สำหรับการเรียกแบบง่าย
 from google.api_core.exceptions import GoogleAPICallError
+from google.oauth2 import service_account
 from typing import Optional, Tuple
 
+
+# ====================================================================
+# ฟังก์ชันช่วยโหลด Credentials (เพื่อป้องกันหน้าต่างดำเด้ง)
+# ====================================================================
+def get_credentials():
+    # หา path ของไฟล์ key.json (รองรับทั้งแบบ .py และ .exe)
+    if getattr(sys, 'frozen', False):
+        base_path = os.path.dirname(sys.executable)
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    
+    key_path = os.path.join(base_path, 'key.json')
+    
+    if os.path.exists(key_path):
+        # โหลด Key โดยตรง
+        return service_account.Credentials.from_service_account_file(key_path)
+    else:
+        print("Warning: key.json not found! Trying default environment.")
+        return None
+    
 # ====================================================================
 # I. Fuction สำหรับ OCR (Google Cloud Vision API)
 # ====================================================================
@@ -20,9 +43,14 @@ def process_image_to_text(image_data: bytes) -> Optional[str]:
         ข้อความที่สแกนได้ทั้งหมดในรูปแบบ string หรือ None หากเกิดข้อผิดพลาด.
     """
     try:
-        # สร้าง Client สำหรับ Vision API
-        # Client จะใช้ GOOGLE_APPLICATION_CREDENTIALS ในการยืนยันตัวตน
-        client = vision.ImageAnnotatorClient()
+        # --- แก้ไขตรงนี้: โหลด Key มาใช้ ---
+        creds = get_credentials()
+        if creds:
+            client = vision.ImageAnnotatorClient(credentials=creds)
+        else:
+            client = vision.ImageAnnotatorClient() # Fallback แบบเดิม
+        # --------------------------------
+        
         image = vision.Image(content=image_data)
 
         # เรียกใช้ Text Detection
@@ -30,11 +58,9 @@ def process_image_to_text(image_data: bytes) -> Optional[str]:
         texts = response.text_annotations
 
         if texts:
-            # texts[0].description คือข้อความทั้งหมดที่สแกนเจอในรูปภาพ
             original_text = texts[0].description.strip()
             return original_text
         
-        print("INFO: ไม่พบข้อความใด ๆ ในรูปภาพที่สแกน.")
         return None
 
     except GoogleAPICallError as e:
@@ -64,17 +90,22 @@ def translate_content(text_content: str, target_language: str = 'th', source_lan
         return None
     
     try:
-        # สร้าง Client สำหรับ Translation API (ใช้ v2 เพื่อความง่ายในการเรียก)
-        client = translate.Client()
+        creds = get_credentials()
+        if creds:
+            client = translate.Client(credentials=creds)
+        else:
+            client = translate.Client() 
 
-        # ทำการแปล
         result = client.translate(
             text_content,
             target_language=target_language,
             source_language=source_language
         )
         
-        translated_text = result['translatedText'].strip()
+        # --- 2. แก้ไขตรงนี้: เพิ่ม html.unescape() ---
+        # เดิม: translated_text = result['translatedText'].strip()
+        translated_text = html.unescape(result['translatedText'].strip())
+        
         return translated_text
 
     except GoogleAPICallError as e:
